@@ -10,3 +10,6 @@ RUN apt-get update && \
     echo 'StrictHostKeyChecking no' >> /root/.ssh/config && \
     echo 'LogLevel quiet' >> /root/.ssh/config && \
     chmod 600 /root/.ssh/config
+
+ADD mpirun_docker /usr/bin
+ADD mpistop /usr/bin

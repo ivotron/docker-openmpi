@@ -1,0 +1,18 @@
+#!/bin/bash
+
+if [ -z "$MPIRUN_FLAGS" ] ; then
+  echo "Expecting MPIRUN_FLAGS"
+  exit 1
+fi
+
+mpirun \
+  --allow-run-as-root \
+  --mca plm_rsh_args "-p $SSHD_PORT" \
+  $MPIRUN_FLAGS \
+  service ssh stop &> /tmp/output
+
+if [ $? -ne 0 ] ; then
+  echo "Error while terminating sshd"
+  cat /tmp/output
+  exit 1
+fi

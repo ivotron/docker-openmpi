@@ -1,0 +1,25 @@
+#!/bin/bash
+
+if [ -n "$RANK0" ] ; then
+
+  # spawn sshd
+  /root/entrypoint.sh &> /dev/null &
+
+  # wait for other's sshd to startup
+  if [ -z "$WAIT_SECS" ] ; then
+    WAIT_SECS=60
+  fi
+  sleep $WAIT_SECS
+
+  # invoke mpirun
+  if [ -z "$MPIRUN_FLAGS" ] ; then
+    echo "Expecting MPIRUN_FLAGS"
+    exit 1
+  fi
+
+  mpirun \
+    --allow-run-as-root \
+    --mca plm_rsh_args "-p $SSHD_PORT" \
+    $MPIRUN_FLAGS \
+    $@
+fi
