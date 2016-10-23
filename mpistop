@@ -1,18 +1,19 @@
 #!/bin/bash
 
-if [ -z "$MPIRUN_FLAGS" ] ; then
-  echo "Expecting MPIRUN_FLAGS"
-  exit 1
-fi
+if [ -n "$RANK0" ] ; then
 
-mpirun \
-  --allow-run-as-root \
-  --mca plm_rsh_args "-p $SSHD_PORT" \
-  $MPIRUN_FLAGS \
-  service ssh stop &> /tmp/output
+  if [ -f /tmp/mpihosts ]; then
+    MPIRUN_FLAGS="--hostfile /tmp/mpihosts"
+  elif [ -n "$HOSTS" ] ; then
+    MPIRUN_FLAGS="-H $HOSTS"
+  else
+    echo "Expecting HOSTS variable or /tmp/mpihosts file"
+    exit 1
+  fi
 
-if [ $? -ne 0 ] ; then
-  echo "Error while terminating sshd"
-  cat /tmp/output
-  exit 1
+  mpirun \
+    --allow-run-as-root \
+    --mca plm_rsh_args "-p $SSHD_PORT" \
+    $MPIRUN_FLAGS \
+    service ssh stop &> /tmp/output
 fi

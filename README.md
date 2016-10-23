@@ -2,95 +2,88 @@
 
 Image intended to be used for building MPI-based container images. It 
 is based on 
-[`ivotron/openssh`](https://github.com/ivotron/docker-openssh). 
+[`ivotron/openssh`](https://github.com/ivotron/docker-openssh). For an 
+example on how to build on top of this image, take a look at the 
+[`helloworld`](example/) MPI application (whose binary included in 
+this image).
 
-## Building Images
+## `entrypoint` of derived images
 
-Example `Dockerfile`:
+The image contains an `mpirun_docker` utility that mimics the `mpirun` 
+application. The command reads an `HOSTS` variable or a 
+`/tmp/mpihosts` if exists. An error is thrown if neither or both are 
+given. This variable should have one entry per each docker host that 
+runs an MPI container. With this, the entrypoint specified in the 
+`Dockerfile` can be something like:
 
-```Dockerfile
-FROM ivotron/openmpi
-
-ADD mpi_helloworld.c /root/
-ADD Makefile /root/
-
-RUN cd /root && \
-    make && \
-    mv mpi_helloworld /usr/bin
+```dockerfile
+ENTRYPOINT ["mpirun_docker", "mpi_app"]
 ```
 
-Where `mpi_helloworld.c` is:
+For an example, look at the [`mpi_helloworld` 
+Dockerfile](example/Dockerfile). Note that with this approach, 
+invoking `docker run <docker_flags> <image_name> <app_args>` can be 
+seen as invoking `mpirun` and passing flags to the application.
 
-```c
-#include <mpi.h>
-#include <stdio.h>
-
-int main(int argc, char** argv) {
-  // Initialize the MPI environment. The two arguments to MPI Init are not
-  // currently used by MPI implementations, but are there in case future
-  // implementations might need the arguments.
-  MPI_Init(NULL, NULL);
-
-  // Get the number of processes
-  int world_size;
-  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-
-  // Get the rank of the process
-  int world_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-
-  // Get the name of the processor
-  char processor_name[MPI_MAX_PROCESSOR_NAME];
-  int name_len;
-  MPI_Get_processor_name(processor_name, &name_len);
-
-  // Print off a hello world message
-  printf("Hello world from processor %s, rank %d out of %d processors\n",
-         processor_name, world_rank, world_size);
-
-  // Finalize the MPI environment. No more MPI calls can be made after this
-  MPI_Finalize();
-}
-```
-
-And `Makefile`:
-
-```Makefile
-all: mpi_helloworld
-
-mpi_helloworld: mpi_helloworld.c
-  mpicc -o mpi_helloworld mpi_helloworld.c
-```
+An `MPIRUN_FLAGS` environment variable is passed to the `mpirun` 
+command which can be used to specify additional options. The 
+`mpirun_docker` command assumes that all the hosts specified in the 
+`/tmp/mpihosts` or `HOSTS` flag are running inside containers and 
+using the same `sshd` port and authentication.
 
 ## Running
 
 For running an MPI application (say, with corresponding image 
-`ivorton/mympiapp`), we launch the containers on multiple hosts and 
-SSH into the master node (or run `docker exec` on it). For example:
+`ivorton/mympiapp`), we launch the containers on multiple hosts.
 
 ```bash
-# this runs on each docker host (e.g. host1 and host2)
+# run on each docker host (e.g. host1)
 docker run -d \
     --name=mympiapp \
     --net=host \
     -e SSHD_PORT=2222 \
     -e ADD_INSECURE_KEY=1 \
   ivorton/mympiapp
-
-# on the master node (e.g. host1)
-docker exec mympiapp mpirun \
-  --allow-run-as-root \
-  --host host1,host2 \
-  --mca plm_rsh_args '-p 2222' \
-  -np 8 \
-  mpi_helloworld
-
-Hello world from processor host1, rank 1 out of 8 processors
-Hello world from processor host2, rank 5 out of 8 processors
-Hello world from processor host1, rank 2 out of 8 processors
-Hello world from processor host2, rank 7 out of 8 processors
-Hello world from processor host1, rank 3 out of 8 processors
-Hello world from processor host2, rank 4 out of 8 processors
-Hello world from processor host2, rank 6 out of 8 processors
-Hello world from processor host1, rank 0 out of 8 processors
 ```
+
+One of those containers needs to be "marked" as the head node by 
+passing the `-e RANK0=1` flag. For example, a second node (`host0`) is 
+launched by doing:
+
+```bash
+# launch the MPI head container (e.g. on host0)
+docker run -d \
+    --name=mympiapp \
+    --net=host \
+    -e SSHD_PORT=2222 \
+    -e ADD_INSECURE_KEY=1 \
+    -e RANK0=1 \
+  ivorton/mympiapp
+```
+
+> **Caveats**: The node marked with `RANK0` has a default TIMEOUT of 
+> 60 seconds to wait for others to launch their corresponding `sshd` 
+> daemon. That can be overridden with a `WAIT_SECS` environment 
+> variable. Also, if no container is marked as being `RANK0`, the 
+> containers will run indefinitely since the only thing they do is to 
+> initialize `sshd`. Lastly, the container marked with `RANK0` should 
+> be the last one in the `/tmp/mpihosts` or `HOSTS` variable.
+
+In this case, the output shown in the host running the container 
+marked with `RANK0` ( `host0` in our example) will be:
+
+```
+Hello world from processor host0, rank 1 out of 8 processors
+Hello world from processor host1, rank 5 out of 8 processors
+Hello world from processor host0, rank 2 out of 8 processors
+Hello world from processor host1, rank 7 out of 8 processors
+Hello world from processor host0, rank 3 out of 8 processors
+Hello world from processor host1, rank 4 out of 8 processors
+Hello world from processor host1, rank 6 out of 8 processors
+Hello world from processor host0, rank 0 out of 8 processors
+```
+
+While other docker hosts (`host1` in this case) will show no output. 
+After the application exits, all the containers corresponding to the 
+hosts referenced in the `HOSTS` variable or `/tmp/mpihosts` file are 
+terminated.

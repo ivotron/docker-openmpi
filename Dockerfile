@@ -11,5 +11,11 @@ RUN apt-get update && \
     echo 'LogLevel quiet' >> /root/.ssh/config && \
     chmod 600 /root/.ssh/config
 
-ADD mpirun_docker /usr/bin
+ADD example/* /root/example/
+
+RUN cd /root/example/ && make
+
 ADD mpistop /usr/bin
+ADD mpirun_docker /usr/bin
+
+ENTRYPOINT ["mpirun_docker"]

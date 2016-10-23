@@ -2,8 +2,8 @@
 
 if [ -n "$RANK0" ] ; then
 
-  # spawn sshd
-  /root/entrypoint.sh &> /dev/null &
+  # send sshd to background
+  /root/.ssh/entrypoint.sh &> /dev/null &
 
   # wait for other's sshd to startup
   if [ -z "$WAIT_SECS" ] ; then
@@ -11,9 +11,16 @@ if [ -n "$RANK0" ] ; then
   fi
   sleep $WAIT_SECS
 
-  # invoke mpirun
   if [ -z "$MPIRUN_FLAGS" ] ; then
-    echo "Expecting MPIRUN_FLAGS"
+    MPIRUN_FLAGS=""
+  fi
+
+  if [ -f /tmp/mpihosts ]; then
+    MPIRUN_FLAGS="$MPIRUN_FLAGS --hostfile /tmp/mpihosts"
+  elif [ -n "$HOSTS" ] ; then
+    MPIRUN_FLAGS="$MPIRUN_FLAGS -H $HOSTS"
+  else
+    echo "Expecting HOSTS variable or /tmp/mpihosts file"
     exit 1
   fi
 
@@ -22,4 +29,12 @@ if [ -n "$RANK0" ] ; then
     --mca plm_rsh_args "-p $SSHD_PORT" \
     $MPIRUN_FLAGS \
     $@
+
+  if [ -z $SKIP_MPISTOP ]; then
+    mpistop
+  fi
+else
+  /root/.ssh/entrypoint.sh
 fi
+
+exit 0
