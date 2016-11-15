@@ -6,10 +6,10 @@ if [ -n "$RANK0" ] ; then
   /root/.ssh/entrypoint.sh &> /dev/null &
 
   # wait for other's sshd to startup
-  if [ -z "$WAIT_SECS" ] ; then
-    WAIT_SECS=60
+  if [ -z "$WAIT_SSHD_SECS" ] ; then
+    WAIT_SSHD_SECS=60
   fi
-  sleep $WAIT_SECS
+  sleep $WAIT_SSHD_SECS
 
   if [ -z "$MPIRUN_FLAGS" ] ; then
     MPIRUN_FLAGS=""
