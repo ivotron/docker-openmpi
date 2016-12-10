@@ -1,40 +1,45 @@
 #!/bin/bash
 
-if [ -n "$RANK0" ] ; then
-
-  # send sshd to background
-  /root/.ssh/entrypoint.sh &> /dev/null &
-
-  # wait for other's sshd to startup
-  if [ -z "$WAIT_SSHD_SECS" ] ; then
-    WAIT_SSHD_SECS=60
-  fi
-  sleep $WAIT_SSHD_SECS
-
-  if [ -z "$MPIRUN_FLAGS" ] ; then
-    MPIRUN_FLAGS=""
-  fi
-
-  if [ -f /tmp/mpihosts ]; then
-    MPIRUN_FLAGS="$MPIRUN_FLAGS --hostfile /tmp/mpihosts"
-  elif [ -n "$HOSTS" ] ; then
-    MPIRUN_FLAGS="$MPIRUN_FLAGS -H $HOSTS"
-  else
-    echo "Expecting HOSTS variable or /tmp/mpihosts file"
-    exit 1
-  fi
-
-  mpirun \
-    --allow-run-as-root \
-    --mca plm_rsh_args "-p $SSHD_PORT" \
-    $MPIRUN_FLAGS \
-    $@
-
-  if [ -z $SKIP_MPISTOP ]; then
-    mpistop
-  fi
-else
+if [ -z "$RANK0" ] ; then
+  # if we are not RANK0, we just launch sshd
   /root/.ssh/entrypoint.sh
+  exit 0
 fi
 
-exit 0
+if [ ! -f /tmp/mpihosts ]; then
+  echo "Expecting /tmp/mpihosts file"
+  exit 1
+fi
+
+# send sshd to background
+/root/.ssh/entrypoint.sh &> /dev/null &
+
+# wait for other's sshd to start
+if [ -z "$WAIT_SSHD_SECS" ] ; then
+  WAIT_SSHD_SECS=60
+fi
+sleep $WAIT_SSHD_SECS
+
+# run
+if [ -z "$MPIRUN_FLAGS" ] ; then
+  MPIRUN_FLAGS=""
+fi
+MPIRUN_FLAGS="$MPIRUN_FLAGS --hostfile /tmp/mpihosts"
+mpirun \
+  --allow-run-as-root \
+  --mca plm_rsh_args "-p $SSHD_PORT" \
+  $MPIRUN_FLAGS \
+  $@
+mpiresult=$?
+
+# stop sshd. This should stop the openmpi containers running on all containers 
+# but ours since sshd is the main process for those. In our case, this was sent 
+# to the background earlier (above), so stopping sshd won't stop the container
+stopsshd "`cat /tmp/mpihosts`"
+
+# user-defined post-processing
+if [ -f /tmp/mpipostrun ]; then
+  /tmp/mpipostrun
+fi
+
+exit $mpiresult
