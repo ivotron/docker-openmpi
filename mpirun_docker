@@ -38,8 +38,6 @@ mpiresult=$?
 stopsshd "`cat /tmp/mpihosts`"
 
 # user-defined post-processing
-if [ -f /tmp/mpipostrun ]; then
-  /tmp/mpipostrun
-fi
+hash mpipostrun &> /dev/null && mpipostrun
 
 exit $mpiresult

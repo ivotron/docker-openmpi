@@ -10,14 +10,19 @@ this image).
 ## `entrypoint` of derived images
 
 The image contains an `mpirun_docker` utility that mimics the `mpirun` 
-application. The command reads an `HOSTS` variable or a 
-`/tmp/mpihosts` if exists. An error is thrown if neither or both are 
-given. This variable should have one entry per each docker host that 
-runs an MPI container. With this, the entrypoint specified in the 
-`Dockerfile` can be something like:
+application. The command reads a `/tmp/mpihosts` file if exists. An 
+error is thrown if not. This file should have one line per each docker 
+host (hostname or IP address) that runs an MPI container. **NOTE**: 
+while a regular `hostfile` can contain more than just the hostname or 
+IP on each line, we assume this is not the case (for the purposes of 
+shutting down the containers).
+
+The `entrypoint` of the `openmpi` container is this `mpirun_docker` 
+command. With this, the entrypoint specified in the `Dockerfile` can 
+be something like:
 
 ```dockerfile
-ENTRYPOINT ["mpirun_docker", "mpi_app"]
+ENTRYPOINT ["mpirun_docker", "mympiapp"]
 ```
 
 For an example, look at the [`mpi_helloworld` 
@@ -27,13 +32,13 @@ seen as invoking `mpirun` and passing flags to the application.
 
 An `MPIRUN_FLAGS` environment variable is passed to the `mpirun` 
 command which can be used to specify additional options. The 
-`mpirun_docker` command assumes that all the hosts specified in the 
-`/tmp/mpihosts` or `HOSTS` flag are running inside containers and 
-using the same `sshd` port and authentication.
+`mpirun_docker` command assumes that all the hosts specified in 
+`/tmp/mpihosts` inside containers and using the same `sshd` port and 
+authentication method.
 
 ## Running
 
-For running an MPI application (say, with corresponding image 
+In order to run an MPI application (say, with corresponding image 
 `ivorton/mympiapp`), we launch the containers on multiple hosts.
 
 ```bash
@@ -63,11 +68,10 @@ docker run -d \
 
 > **Caveats**: The node marked with `RANK0` has a default TIMEOUT of 
 > 60 seconds to wait for others to launch their corresponding `sshd` 
-> daemon. That can be overridden with a `WAIT_SECS` environment 
+> daemon. That can be overridden with a `WAIT_SSHD_SECS` environment 
 > variable. Also, if no container is marked as being `RANK0`, the 
 > containers will run indefinitely since the only thing they do is to 
-> initialize `sshd`. Lastly, the container marked with `RANK0` should 
-> be the last one in the `/tmp/mpihosts` or `HOSTS` variable.
+> initialize `sshd`.
 
 In this case, the output shown in the host running the container 
 marked with `RANK0` ( `host0` in our example) will be:
@@ -85,5 +89,14 @@ Hello world from processor host0, rank 0 out of 8 processors
 
 While other docker hosts (`host1` in this case) will show no output. 
 After the application exits, all the containers corresponding to the 
-hosts referenced in the `HOSTS` variable or `/tmp/mpihosts` file are 
-terminated.
+hosts referenced in `/tmp/mpihosts` file are terminated (using the 
+`stopsshd` command from the [`openssh` base 
+image](https://github.com/ivotron/docker-openssh)).
+
+## Application-specific post-processing
+
+The `mpirun_docker` command looks for a `mpipostrun` command in the 
+`PATH` and, if available, it invokes it. This can be used to add 
+user-defined logic for post-processing MPI output (e.g. copying log 
+files). For an example look at 
+[here](https://github.com/ivotron/docker-bench/tree/master/conceptual).

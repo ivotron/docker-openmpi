@@ -15,7 +15,6 @@ ADD example/* /root/example/
 
 RUN cd /root/example/ && make
 
-ADD mpistop /usr/bin
 ADD mpirun_docker /usr/bin
 
 ENTRYPOINT ["mpirun_docker"]
