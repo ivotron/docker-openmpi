@@ -1,5 +1,12 @@
 #!/bin/bash
 
+if [ -n "$SINGLE_NODE" ] ; then
+  RANK0=1
+  touch /tmp/mpihosts
+  SSHD_PORT=6666
+  WAIT_SSHD_SECS=0
+fi
+
 if [ -z "$RANK0" ] ; then
   # if we are not RANK0, we just launch sshd
   /root/.ssh/entrypoint.sh
@@ -24,7 +31,10 @@ sleep $WAIT_SSHD_SECS
 if [ -z "$MPIRUN_FLAGS" ] ; then
   MPIRUN_FLAGS=""
 fi
-MPIRUN_FLAGS="$MPIRUN_FLAGS --hostfile /tmp/mpihosts"
+if [ -z "$SINGLE_NODE" ] ; then
+  MPIRUN_FLAGS="$MPIRUN_FLAGS --hostfile /tmp/mpihosts"
+fi
+echo "running mpirun --allow-run-as-root --mca plm_rsh_args -p $SSHD_PORT $MPIRUN_FLAGS $@"
 mpirun \
   --allow-run-as-root \
   --mca plm_rsh_args "-p $SSHD_PORT" \
