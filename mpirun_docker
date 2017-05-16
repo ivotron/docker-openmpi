@@ -39,7 +39,7 @@ mpirun \
   --allow-run-as-root \
   --mca plm_rsh_args "-p $SSHD_PORT" \
   $MPIRUN_FLAGS \
-  $@
+  $@ 2> mpirun.err > mpirun.out
 mpiresult=$?
 
 # stop sshd. This should stop the openmpi containers running on all containers 
