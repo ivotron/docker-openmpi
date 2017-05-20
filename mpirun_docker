@@ -47,7 +47,13 @@ mpiresult=$?
 # to the background earlier (above), so stopping sshd won't stop the container
 stopsshd "`cat /tmp/mpihosts`"
 
-# user-defined post-processing
+# execute user-defined post-processing if exists
 hash mpipostrun &> /dev/null && mpipostrun
+
+# check if there's a /results folder and copy anything from current working dir
+if [ -d /results ] ; then
+  echo "found /results folder, copying files from local dir"
+  cp * /results/ || true
+fi
 
 exit $mpiresult
