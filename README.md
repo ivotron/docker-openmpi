@@ -60,6 +60,7 @@ launched by doing:
 docker run -d \
     --name=mympiapp \
     --net=host \
+    -v `pwd`/output:/results \
     -e SSHD_PORT=2222 \
     -e ADD_INSECURE_KEY=1 \
     -e RANK0=1 \
@@ -73,21 +74,29 @@ docker run -d \
 > containers will run indefinitely since the only thing they do is to 
 > initialize `sshd`.
 
-In this case, the output shown in the host running the container 
-marked with `RANK0` ( `host0` in our example) will be:
+The container runs `mpirun` on the container marked as `RANK0` and 
+`stdout` and `stderr` are written to `mpirun.out` and `mpirun.err` 
+files that are placed in a `/results` folder. To persist this files, 
+one can bind-mount this folder from the host (as shown above). In the 
+`helloworld` example, the contents of the `mpirun.out` file will be:
 
 ```
 Hello world from processor host0, rank 1 out of 8 processors
-Hello world from processor host1, rank 5 out of 8 processors
 Hello world from processor host0, rank 2 out of 8 processors
-Hello world from processor host1, rank 7 out of 8 processors
 Hello world from processor host0, rank 3 out of 8 processors
-Hello world from processor host1, rank 4 out of 8 processors
-Hello world from processor host1, rank 6 out of 8 processors
 Hello world from processor host0, rank 0 out of 8 processors
 ```
 
-While other docker hosts (`host1` in this case) will show no output. 
+While other docker hosts' `mpirun.out` file (`host1` in this case) 
+will show:
+
+```
+Hello world from processor host1, rank 7 out of 8 processors
+Hello world from processor host1, rank 5 out of 8 processors
+Hello world from processor host1, rank 6 out of 8 processors
+Hello world from processor host1, rank 4 out of 8 processors
+```
+
 After the application exits, all the containers corresponding to the 
 hosts referenced in `/tmp/mpihosts` file are terminated (using the 
 `stopsshd` command from the [`openssh` base 
