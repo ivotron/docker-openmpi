@@ -12,6 +12,7 @@ RUN apt-get update && \
     chmod 600 /root/.ssh/config
 
 ADD mpirun_docker /usr/bin
+ADD copyresults /usr/bin
 ADD example/ /example/
 
 RUN make -C /example && \

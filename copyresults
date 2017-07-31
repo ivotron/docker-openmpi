@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# check if there's a /results folder
+if [ -d /results ] ; then
+  # copy anything from current working dir
+  echo "found /results folder, copying files from local dir"
+  cp * /results/ || true
+fi

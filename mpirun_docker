@@ -42,6 +42,11 @@ mpirun \
   $@ 2> mpirun.err > mpirun.out
 mpiresult=$?
 
+# copy output from all ranks to /results folder
+for host in `cat /tmp/mpihosts`; do
+  ssh -p $SSHD_PORT $host copyresults
+done
+
 # stop sshd. This should stop the openmpi containers running on all containers 
 # but ours since sshd is the main process for those. In our case, this was sent 
 # to the background earlier (above), so stopping sshd won't stop the container
@@ -50,10 +55,6 @@ stopsshd "`cat /tmp/mpihosts`"
 # execute user-defined post-processing if exists
 hash mpipostrun &> /dev/null && mpipostrun
 
-# check if there's a /results folder and copy anything from current working dir
-if [ -d /results ] ; then
-  echo "found /results folder, copying files from local dir"
-  cp * /results/ || true
-fi
+copyresults
 
 exit $mpiresult
