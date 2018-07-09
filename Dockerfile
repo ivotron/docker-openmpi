@@ -1,4 +1,4 @@
-FROM ivotron/openssh
+FROM ivotron/openssh:7.7
 
 ARG DEBIAN_FRONTEND=noninteractive
 

@@ -1,29 +1,90 @@
-#include <mpi.h>
+/* MPI test program. Reports user namespace and rank, then sends and receives
+   some simple messages.
+
+   from: https://github.com/hpc/charliecloud/master/examples/mpi/mpihello/hello.c
+
+   Patterned after:
+   http://en.wikipedia.org/wiki/Message_Passing_Interface#Example_program */
+
+#define _GNU_SOURCE
+#include <limits.h>
+#include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
-int main(int argc, char** argv) {
-  // Initialize the MPI environment. The two arguments to MPI Init are not
-  // currently used by MPI implementations, but are there in case future
-  // implementations might need the arguments.
-  MPI_Init(NULL, NULL);
+#include <mpi.h>
 
-  // Get the number of processes
-  int world_size;
-  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+#define TAG 0
+#define MSG_OUT 8675309
 
-  // Get the rank of the process
-  int world_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+void fatal(char * fmt, ...);
+int op(int rank, int i);
 
-  // Get the name of the processor
-  char processor_name[MPI_MAX_PROCESSOR_NAME];
-  int name_len;
-  MPI_Get_processor_name(processor_name, &name_len);
+int rank, rank_ct;
 
-  // Print off a hello world message
-  printf("Hello world from processor %s, rank %d out of %d processors\n",
-         processor_name, world_rank, world_size);
+int main(int argc, char ** argv)
+{
+   int msg;
+   struct stat st;
+   MPI_Status mstat;
+   char hostname[HOST_NAME_MAX+1];
 
-  // Finalize the MPI environment. No more MPI calls can be made after this
-  MPI_Finalize();
+   stat("/proc/self/ns/user", &st);
+
+   MPI_Init(&argc, &argv);
+   MPI_Comm_size(MPI_COMM_WORLD, &rank_ct);
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+   gethostname(hostname, HOST_NAME_MAX+1);
+   printf("%d: init ok %s, %d ranks, userns %lu\n",
+          rank, hostname, rank_ct, st.st_ino);
+   fflush(stdout);
+
+   if (rank == 0) {
+      for (int i = 1; i < rank_ct; i++) {
+         msg = MSG_OUT;
+         MPI_Send(&msg, 1, MPI_INT, i, TAG, MPI_COMM_WORLD);
+         msg = 0;
+         MPI_Recv(&msg, 1, MPI_INT, i, TAG, MPI_COMM_WORLD, &mstat);
+         if (msg != op(i, MSG_OUT))
+            fatal("0: expected %d back but got %d", op(i, MSG_OUT), msg);
+      }
+   } else {
+      msg = 0;
+      MPI_Recv(&msg, 1, MPI_INT, 0, TAG, MPI_COMM_WORLD, &mstat);
+      if (msg != MSG_OUT)
+         fatal("%d: expected %d but got %d", rank, MSG_OUT, msg);
+      msg = op(rank, msg);
+      MPI_Send(&msg, 1, MPI_INT, 0, TAG, MPI_COMM_WORLD);
+   }
+
+   if (rank == 0)
+      printf("%d: send/receive ok\n", rank);
+
+   MPI_Finalize();
+   if (rank == 0)
+      printf("%d: finalize ok\n", rank);
+   return 0;
+}
+
+void fatal(char * fmt, ...)
+{
+   va_list ap;
+
+   fprintf(stderr, "rank %d:", rank);
+
+   va_start(ap, fmt);
+   vfprintf(stderr, fmt, ap);
+   va_end(ap);
+
+   fprintf(stderr, "\n");
+   exit(EXIT_FAILURE);
+}
+
+int op(int rank, int i)
+{
+   return i * rank;
 }
